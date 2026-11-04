@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Acceso · {{ app_name }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
+  <main class="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-2xl p-7 shadow-2xl">
+    <div class="flex items-center gap-3 mb-7"><div class="w-11 h-11 rounded-xl bg-lime-400 text-zinc-950 flex items-center justify-center text-2xl">🎾</div><div><h1 class="font-extrabold text-xl">Club Terracota Pádel</h1><p class="text-xs text-zinc-400">Gestión interna de jugadores</p></div></div>
+    <h2 class="font-bold text-lg mb-1">Iniciar sesión</h2><p class="text-sm text-zinc-400 mb-5">Acceso privado para el equipo del club.</p>
+    {% if error %}<p class="mb-4 rounded-lg bg-red-950 border border-red-800 text-red-200 px-3 py-2 text-sm">{{ error }}</p>{% endif %}
+    <form method="post" action="/login" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="block text-sm">Usuario<input name="username" maxlength="80" required autocomplete="username" class="mt-1 w-full rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2.5 outline-none focus:border-lime-400"></label>
+      <label class="block text-sm">Contraseña<input type="password" name="password" maxlength="256" required autocomplete="current-password" class="mt-1 w-full rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2.5 outline-none focus:border-lime-400"></label>
+      <button class="w-full rounded-xl bg-lime-400 hover:bg-lime-300 text-zinc-950 font-bold py-3">Entrar</button>
+    </form>
+  </main>
+</body></html>

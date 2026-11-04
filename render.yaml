@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: club-terracota-padel
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.presentation.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_NAME
+        value: Club Terracota Padel
+      - key: APP_ENV
+        value: production
+      - key: APP_USERNAME
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: SESSION_SECRET_KEY
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

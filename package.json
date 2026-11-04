@@ -1,0 +1,12 @@
+{
+  "name": "club-terracota-padel-assets",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build:css": "tailwindcss -i ./app/static/input.css -o ./app/static/app.css --minify",
+    "test:filter": "node --test tests/test_filter_rules.cjs tests/test_whatsapp_parser.cjs tests/test_csv_tools.cjs"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

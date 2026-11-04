@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Club Pádel · Gestión de Jugadores y Partidas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        lima:   { DEFAULT:'#a3e635', dark:'#84cc16', deep:'#65a30d' },
+        carbono:{ 950:'#09090b', 900:'#101013', 800:'#18181b', 700:'#27272a', 600:'#3f3f46' }
+      },
+      fontFamily: { sans:['Inter','system-ui','sans-serif'] }
+    }
+  }
+}
+</script>
+<style>
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',system-ui,sans-serif}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:#18181b}
+  ::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#65a30d}
+  .chip{transition:all .15s ease;cursor:pointer;user-select:none}
+  .chip:hover{transform:translateY(-1px)}
+  .chip.on{background:#a3e635!important;color:#09090b!important;border-color:#a3e635!important;font-weight:700}
+  .card-hover{transition:transform .15s ease, box-shadow .15s ease}
+  .card-hover:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(163,230,53,.12)}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:#3f3f46;outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:#a3e635;cursor:pointer;border:2px solid #09090b}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#a3e635;cursor:pointer;border:2px solid #09090b}
+  .fade-in{animation:fadeIn .25s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .toast{animation:toastIn .3s ease}
+  @keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+  .modal-bg{background:rgba(9,9,11,.78);backdrop-filter:blur(4px)}
+  input[type=time]{color-scheme:dark}
+  .tab-btn.on{background:#a3e635;color:#09090b;font-weight:700}
+</style>
+</head>
+<body class="bg-carbono-950 text-zinc-100 min-h-screen">
+
+<!-- ══════════ CABECERA ══════════ -->
+<header class="sticky top-0 z-40 bg-carbono-900/95 backdrop-blur border-b border-carbono-700">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-3 mr-auto">
+      <div class="w-10 h-10 rounded-xl bg-lima flex items-center justify-center text-2xl">🎾</div>
+      <div>
+        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight">Club Pádel <span class="text-lima">Pro</span></h1>
+        <p class="text-[11px] text-zinc-400 -mt-0.5">Gestión de jugadores y cierre de partidas</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button onclick="abrirModal()" class="bg-lima hover:bg-lima-dark text-carbono-950 font-bold px-4 py-2 rounded-xl text-sm transition">➕ Nuevo jugador</button>
+      <button onclick="document.getElementById('importFile').click()" class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2 rounded-xl text-sm transition">📥 Importar</button>
+      <div class="relative">
+        <button onclick="toggleMenuExport()" class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2 rounded-xl text-sm transition">📤 Exportar ▾</button>
+        <div id="menuExport" class="hidden absolute right-0 mt-2 w-44 bg-carbono-800 border border-carbono-700 rounded-xl shadow-xl overflow-hidden z-50">
+          <button onclick="exportar('json')" class="w-full text-left px-4 py-2.5 text-sm hover:bg-carbono-700">🗄️ JSON (copia seguridad)</button>
+          <button onclick="exportar('csv')" class="w-full text-left px-4 py-2.5 text-sm hover:bg-carbono-700">📊 CSV (Excel)</button>
+        </div>
+      </div>
+      <button onclick="restaurarEjemplos()" class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2 rounded-xl text-sm transition" title="Cargar datos de ejemplo">🔄 Ejemplos</button>
+    </div>
+  </div>
+  <!-- Pestañas -->
+  <div class="max-w-7xl mx-auto px-4 flex gap-2 pb-3">
+    <button data-tab="buscar" onclick="mostrarTab('buscar')" class="tab-btn on px-4 py-1.5 rounded-lg text-sm bg-carbono-700 transition">🔍 Búsqueda exprés</button>
+    <button data-tab="jugadores" onclick="mostrarTab('jugadores')" class="tab-btn px-4 py-1.5 rounded-lg text-sm bg-carbono-700 transition">👥 Todos los jugadores</button>
+    <button data-tab="parser" onclick="mostrarTab('parser')" class="tab-btn px-4 py-1.5 rounded-lg text-sm bg-carbono-700 transition">💬 Volcar desde WhatsApp</button>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+<!-- ══════════ PESTAÑA: BÚSQUEDA EXPRÉS ══════════ -->
+<section id="tab-buscar" class="fade-in">
+
+  <!-- Panel de filtros -->
+  <div class="bg-carbono-900 border border-carbono-700 rounded-2xl p-4 sm:p-5 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-lima">⚡ Filtros rápidos</h2>
+      <button onclick="limpiarFiltros()" class="text-xs text-zinc-400 hover:text-lima underline underline-offset-2">Limpiar filtros</button>
+    </div>
+
+    <!-- Nivel -->
+    <div class="mb-4">
+      <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Nivel</p>
+      <div id="fNiveles" class="flex flex-wrap gap-1.5"></div>
+    </div>
+
+    <!-- Días -->
+    <div class="mb-4">
+      <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Día de la semana</p>
+      <div id="fDias" class="flex flex-wrap gap-1.5"></div>
+    </div>
+
+    <!-- Franja horaria -->
+    <div class="mb-4">
+      <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Franja horaria</p>
+      <div id="fFranjas" class="flex flex-wrap gap-1.5 mb-3"></div>
+      <div class="bg-carbono-800 rounded-xl p-3">
+        <p class="text-xs text-zinc-400 mb-2">O ajusta el rango de hora: <span id="rangoLabel" class="text-lima font-bold">06:00 – 24:00</span></p>
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] text-zinc-500 w-8">Desde</span>
+          <input type="range" id="hMin" min="6" max="24" value="6" class="flex-1" oninput="cambiarRango()">
+        </div>
+        <div class="flex items-center gap-3 mt-2">
+          <span class="text-[10px] text-zinc-500 w-8">Hasta</span>
+          <input type="range" id="hMax" min="6" max="24" value="24" class="flex-1" oninput="cambiarRango()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Tipo de disponibilidad -->
+    <div>
+      <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Tipo de horario</p>
+      <div id="fTipos" class="flex flex-wrap gap-1.5"></div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-bold text-lg">Resultados <span id="contador" class="text-lima">(0)</span></h2>
+  </div>
+  <div id="resultados" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+  <div id="sinResultados" class="hidden text-center py-16 text-zinc-500">
+    <p class="text-5xl mb-3">🕳️</p>
+    <p class="font-bold">Ningún jugador coincide con los filtros</p>
+    <p class="text-sm mt-1">Prueba a quitar algún filtro o añade nuevos jugadores.</p>
+  </div>
+</section>
+
+<!-- ══════════ PESTAÑA: TODOS LOS JUGADORES ══════════ -->
+<section id="tab-jugadores" class="hidden fade-in">
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <h2 class="font-bold text-lg mr-auto">Base de datos completa <span id="contadorTotal" class="text-lima">(0)</span></h2>
+    <input type="text" id="buscadorGlobal" placeholder="🔎 Buscar por nombre, teléfono o nota…" oninput="renderLista()"
+      class="bg-carbono-900 border border-carbono-700 rounded-xl px-4 py-2 text-sm w-full sm:w-80 focus:outline-none focus:border-lima">
+  </div>
+  <div class="overflow-x-auto rounded-2xl border border-carbono-700">
+    <table class="w-full text-sm min-w-[760px]">
+      <thead class="bg-carbono-800 text-zinc-400 text-xs uppercase tracking-wide">
+        <tr>
+          <th class="text-left px-4 py-3">Jugador</th>
+          <th class="text-left px-4 py-3">Nivel</th>
+          <th class="text-left px-4 py-3">Teléfono</th>
+          <th class="text-left px-4 py-3">Días</th>
+          <th class="text-left px-4 py-3">Horario</th>
+          <th class="text-left px-4 py-3">Tipo</th>
+          <th class="text-left px-4 py-3">Notas</th>
+          <th class="text-right px-4 py-3">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tablaJugadores" class="divide-y divide-carbono-700"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════ PESTAÑA: PARSER WHATSAPP ══════════ -->
+<section id="tab-parser" class="hidden fade-in">
+  <div class="bg-carbono-900 border border-carbono-700 rounded-2xl p-4 sm:p-6">
+    <h2 class="font-bold text-lg text-lima mb-1">💬 Volcado rápido desde WhatsApp</h2>
+    <p class="text-sm text-zinc-400 mb-4">Pega aquí un listado o chat exportado. La herramienta detecta automáticamente <b class="text-zinc-200">nombres, teléfonos, niveles, días y horarios</b>. Revisa la tabla y añade los que quieras.</p>
+    <textarea id="textoWhatsapp" rows="8" placeholder="Ejemplo de líneas válidas:&#10;Ana García — 612 345 678 — nivel 3.5 — L X V — 18:30-21:00 — fijo&#10;Luis: +34 699111222 nivel 4 martes y jueves de 19:00 a 22:00 rotativo"
+      class="w-full bg-carbono-950 border border-carbono-700 rounded-xl p-4 text-sm focus:outline-none focus:border-lima placeholder:text-zinc-600"></textarea>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <button onclick="analizarTexto()" class="bg-lima hover:bg-lima-dark text-carbono-950 font-bold px-5 py-2.5 rounded-xl text-sm transition">🔍 Analizar texto</button>
+      <button onclick="document.getElementById('textoWhatsapp').value=''" class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2.5 rounded-xl text-sm transition">🧹 Limpiar</button>
+    </div>
+  </div>
+  <div id="zonaCandidatos" class="hidden mt-5 bg-carbono-900 border border-carbono-700 rounded-2xl p-4 sm:p-6">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <h3 class="font-bold">Candidatos detectados <span id="contadorCandidatos" class="text-lima">(0)</span></h3>
+      <div class="flex gap-2">
+        <button onclick="marcarTodos(true)" class="text-xs bg-carbono-700 hover:bg-carbono-600 px-3 py-1.5 rounded-lg">✔ Todos</button>
+        <button onclick="marcarTodos(false)" class="text-xs bg-carbono-700 hover:bg-carbono-600 px-3 py-1.5 rounded-lg">✘ Ninguno</button>
+        <button onclick="añadirCandidatos()" class="bg-lima hover:bg-lima-dark text-carbono-950 font-bold px-4 py-1.5 rounded-lg text-sm transition">➕ Añadir seleccionados</button>
+      </div>
+    </div>
+    <p class="text-xs text-zinc-500 mb-3">💡 Puedes corregir cualquier campo directamente en la tabla antes de añadir.</p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[900px]">
+        <thead class="bg-carbono-800 text-zinc-400 text-xs uppercase">
+          <tr>
+            <th class="px-2 py-2 text-left"></th>
+            <th class="px-2 py-2 text-left">Nombre</th>
+            <th class="px-2 py-2 text-left">Teléfono</th>
+            <th class="px-2 py-2 text-left">Nivel</th>
+            <th class="px-2 py-2 text-left">Días</th>
+            <th class="px-2 py-2 text-left">Inicio</th>
+            <th class="px-2 py-2 text-left">Fin</th>
+            <th class="px-2 py-2 text-left">Tipo</th>
+          </tr>
+        </thead>
+        <tbody id="tablaCandidatos" class="divide-y divide-carbono-700"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ══════════ MODAL AÑADIR / EDITAR ══════════ -->
+<div id="modal" class="hidden fixed inset-0 z-50 modal-bg flex items-center justify-center p-4" onclick="if(event.target===this)cerrarModal()">
+  <div class="bg-carbono-900 border border-carbono-700 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto fade-in">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-carbono-700 sticky top-0 bg-carbono-900">
+      <h3 id="modalTitulo" class="font-bold text-lg text-lima">➕ Nuevo jugador</h3>
+      <button onclick="cerrarModal()" class="text-zinc-400 hover:text-white text-xl leading-none">✕</button>
+    </div>
+    <form id="formJugador" class="p-5 space-y-4" onsubmit="guardarJugador(event)">
+      <div>
+        <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Nombre completo *</label>
+        <input type="text" id="fNombre" required class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima" placeholder="Ej: Ana García">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Teléfono *</label>
+          <input type="text" id="fTelefono" required class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima" placeholder="612345678">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Nivel del club *</label>
+          <select id="fNivel" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima"></select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-zinc-400 uppercase mb-2">Días disponibles</label>
+        <div id="fDiasForm" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Hora inicio</label>
+          <input type="time" id="fInicio" value="18:00" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-lima">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Hora fin</label>
+          <input type="time" id="fFin" value="21:00" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-lima">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-zinc-400 uppercase mb-2">Tipo de horario</label>
+        <div id="fTiposForm" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Notas / observaciones</label>
+        <textarea id="fNotas" rows="2" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima" placeholder="Ej: Preferencia revés, es zurdo…"></textarea>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="flex-1 bg-lima hover:bg-lima-dark text-carbono-950 font-bold py-3 rounded-xl transition">💾 Guardar jugador</button>
+        <button type="button" onclick="cerrarModal()" class="bg-carbono-700 hover:bg-carbono-600 px-5 rounded-xl transition">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept=".json,.csv" class="hidden" onchange="importarArchivo(event)">
+<div id="toasts" class="fixed bottom-4 right-4 z-[60] space-y-2"></div>
+
+<script>
+/* ══════════════════════ CONSTANTES Y ESTADO ══════════════════════ */
+const LS_KEY = 'padelclub_jugadores_v1';
+const DAYS = ['L','M','X','J','V','S','D'];
+const DAY_FULL = {L:'Lunes',M:'Martes',X:'Miércoles',J:'Jueves',V:'Viernes',S:'Sábado',D:'Domingo'};
+const FRANJAS = { 'M1 🌅':[7,10], 'M2 🌤️':[10,13], 'T1 ☀️':[13,17], 'T2 🌇':[17,20], 'N1 🌙':[20,23] };
+const TIPOS = [ ['fijo','📌 Fijo'], ['rotativo','🔁 Rotativo'], ['mananas','🌅 Mañanas'], ['tardes','🌇 Tardes'], ['noches','🌙 Noches'] ];
+const TIPO_LABEL = Object.fromEntries(TIPOS);
+
+const EJEMPLOS = [
+  { id:'e1', nombre:'Ana García',     telefono:'612345678', nivel:3.5, dias:['L','X','V'], inicio:'18:30', fin:'21:00', tipo:'fijo',     notas:'Preferencia revés. Es zurda.' },
+  { id:'e2', nombre:'Carlos Ruiz',    telefono:'655111222', nivel:4.0, dias:['M','J'],       inicio:'19:00', fin:'22:00', tipo:'rotativo', notas:'Subiendo de nivel, pronto 4.25.' },
+  { id:'e3', nombre:'Marta López',    telefono:'699333444', nivel:2.5, dias:['S','D'],       inicio:'09:00', fin:'12:00', tipo:'mananas',  notas:'Disponible también festivos.' },
+  { id:'e4', nombre:'Javier Méndez',  telefono:'610555666', nivel:5.0, dias:['L','M','X','J','V'], inicio:'07:00', fin:'10:00', tipo:'fijo', notas:'Monitor del club.' },
+  { id:'e5', nombre:'Lucía Fernández',telefono:'622777888', nivel:3.0, dias:['X'],           inicio:'13:00', fin:'16:00', tipo:'tardes',   notas:'Quiere partidas femeninas.' },
+  { id:'e6', nombre:'Diego Torres',   telefono:'688999000', nivel:1.5, dias:['V','S'],       inicio:'21:00', fin:'23:00', tipo:'noches',   notas:'Principiante entusiasta.' },
+];
+
+let players = cargar();
+let editandoId = null;
+let candidatos = [];
+const filtros = { niveles:new Set(), dias:new Set(), franjas:new Set(), tipo:null, hMin:6, hMax:24 };
+
+/* ══════════════════════ UTILIDADES ══════════════════════ */
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const aMin = h => { const [a,b] = (h||'0:0').split(':'); return (+a)*60 + (+b||0); };
+const aHoras = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+const soloDigitos = t => String(t||'').replace(/\D/g,'');
+const nivelTxt = n => (+n).toFixed(2).replace(/0+$/,'').replace(/\.$/,'.0');
+
+function cargar(){
+  try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(Array.isArray(d) && d.length) return d; }catch(e){}
+  return JSON.parse(JSON.stringify(EJEMPLOS));
+}
+function guardar(){ localStorage.setItem(LS_KEY, JSON.stringify(players)); }
+
+function toast(msg, ok=true){
+  const t = document.createElement('div');
+  t.className = `toast px-4 py-3 rounded-xl text-sm font-bold shadow-xl border ${ok?'bg-lima text-carbono-950 border-lima-dark':'bg-red-500 text-white border-red-600'}`;
+  t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 2600);
+}
+
+/* ══════════════════════ PESTAÑAS ══════════════════════ */
+function mostrarTab(id){
+  $$('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+  $('#tab-'+id).classList.remove('hidden');
+  $$('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab===id));
+  if(id==='jugadores') renderLista();
+}
+
+/* ══════════════════════ CONSTRUCCIÓN DE FILTROS ══════════════════════ */
+function construirFiltros(){
+  $('#fNiveles').innerHTML = [1,1.5,2,2.5,3,3.5,4,4.5,5].map(n =>
+    `<button class="chip px-3 py-1.5 rounded-lg bg-carbono-800 border border-carbono-700 text-xs" data-nivel="${n}" onclick="toggleFiltro('niveles','${n}',this)">${n.toFixed(1)}</button>`).join('');
+  $('#fDias').innerHTML = DAYS.map(d =>
+    `<button class="chip px-3 py-1.5 rounded-lg bg-carbono-800 border border-carbono-700 text-xs" data-dia="${d}" onclick="toggleFiltro('dias','${d}',this)" title="${DAY_FULL[d]}">${d}</button>`).join('');
+  $('#fFranjas').innerHTML = Object.keys(FRANJAS).map(f =>
+    `<button class="chip px-3 py-1.5 rounded-lg bg-carbono-800 border border-carbono-700 text-xs" data-franja="${f}" onclick="toggleFiltro('franjas','${f}',this)">${f}</button>`).join('');
+  $('#fTipos').innerHTML = `<button class="chip on px-3 py-1.5 rounded-lg bg-carbono-800 border border-carbono-700 text-xs" data-tipo="" onclick="setTipo('',this)">Todos</button>` +
+    TIPOS.map(([v,l]) => `<button class="chip px-3 py-1.5 rounded-lg bg-carbono-800 border border-carbono-700 text-xs" data-tipo="${v}" onclick="setTipo('${v}',this)">${l}</button>`).join('');
+}
+function toggleFiltro(grupo, valor, btn){
+  const set = filtros[grupo];
+  set.has(valor) ? set.delete(valor) : set.add(valor);
+  btn.classList.toggle('on');
+  renderBusqueda();
+}
+function setTipo(v, btn){
+  filtros.tipo = v || null;
+  $$('#fTipos .chip').forEach(b => b.classList.toggle('on', b.dataset.tipo===v));
+  renderBusqueda();
+}
+function cambiarRango(){
+  let a = +$('#hMin').value, b = +$('#hMax').value;
+  if(a > b){ if(event && event.target.id==='hMin'){ b=a; $('#hMax').value=a; } else { a=b; $('#hMin').value=b; } }
+  filtros.hMin = a; filtros.hMax = b;
+  $('#rangoLabel').textContent = `${aHoras(a*60)} – ${aHoras(b*60)}`;
+  renderBusqueda();
+}
+function limpiarFiltros(){
+  filtros.niveles.clear(); filtros.dias.clear(); filtros.franjas.clear(); filtros.tipo=null;
+  filtros.hMin=6; filtros.hMax=24;
+  $('#hMin').value=6; $('#hMax').value=24; $('#rangoLabel').textContent='06:00 – 24:00';
+  $$('.chip').forEach(b => b.classList.remove('on'));
+  $('#fTipos .chip').classList.add('on');
+  renderBusqueda();
+}
+
+/* ══════════════════════ FILTRADO Y RENDER DE BÚSQUEDA ══════════════════════ */
+function pasaFiltros(p){
+  if(filtros.niveles.size && !filtros.niveles.has(String(p.nivel))) return false;
+  if(filtros.dias.size && ![...filtros.dias].some(d => p.dias.includes(d))) return false;
+  if(filtros.tipo && p.tipo !== filtros.tipo) return false;
+  const ini = aMin(p.inicio), fin = aMin(p.fin);
+  if(ini < filtros.hMin*60 || fin > filtros.hMax*60) return false;
+  if(filtros.franjas.size){
+    const ok = [...filtros.franjas].some(f => { const [i,fm] = FRANJAS[f]; return ini < fm*60 && fin > i*60; });
+    if(!ok) return false;
+  }
+  return true;
+}
+
+function tarjetaJugador(p){
+  const diasTxt = p.dias.map(d => `<span class="inline-flex w-6 h-6 items-center justify-center rounded-md bg-carbono-700 text-[11px] font-bold ${filtros.dias.has(d)?'text-lima':''}">${d}</span>`).join(' ');
+  return `
+  <article class="card-hover bg-carbono-900 border border-carbono-700 rounded-2xl p-4 flex flex-col gap-3">
+    <div class="flex items-start justify-between gap-2">
+      <h3 class="font-bold leading-tight">${esc(p.nombre)}</h3>
+      <span class="shrink-0 bg-lima/15 text-lima border border-lima/30 font-extrabold text-sm px-2.5 py-1 rounded-lg">Nv ${nivelTxt(p.nivel)}</span>
+    </div>
+    <div class="flex items-center gap-2 text-sm">
+      <span class="text-zinc-300 font-mono tracking-wide">📞 ${esc(p.telefono)}</span>
+      <button onclick="copiarTelefono('${soloDigitos(p.telefono)}', this)" class="text-[11px] bg-carbono-700 hover:bg-carbono-600 px-2 py-1 rounded-md" title="Copiar teléfono">📋 Copiar</button>
+    </div>
+    <div>
+      <div class="flex flex-wrap gap-1 mb-1.5">${diasTxt || '<span class="text-xs text-zinc-500">Sin días definidos</span>'}</div>
+      <p class="text-sm text-zinc-300">🕒 ${esc(p.inicio)} – ${esc(p.fin)} · <span class="text-lima">${TIPO_LABEL[p.tipo]||esc(p.tipo)}</span></p>
+    </div>
+    ${p.notas ? `<p class="text-xs text-zinc-400 bg-carbono-800 rounded-lg px-3 py-2 leading-relaxed">📝 ${esc(p.notas)}</p>` : ''}
+    <div class="flex gap-2 mt-auto pt-1">
+      <a href="https://wa.me/${soloDigitos(p.telefono)}" target="_blank" rel="noopener" class="flex-1 text-center bg-[#25D366] hover:bg-[#1ebe5b] text-carbono-950 font-bold text-sm py-2.5 rounded-xl transition">💬 WhatsApp</a>
+      <button onclick="abrirModal('${p.id}')" class="bg-carbono-700 hover:bg-carbono-600 px-3.5 rounded-xl" title="Editar">✏️</button>
+      <button onclick="eliminarJugador('${p.id}')" class="bg-carbono-700 hover:bg-red-500/80 px-3.5 rounded-xl" title="Eliminar">🗑️</button>
+    </div>
+  </article>`;
+}
+
+function renderBusqueda(){
+  const res = players.filter(pasaFiltros);
+  $('#contador').textContent = `(${res.length})`;
+  $('#contadorTotal').textContent = `(${players.length})`;
+  $('#resultados').innerHTML = res.map(tarjetaJugador).join('');
+  $('#sinResultados').classList.toggle('hidden', res.length>0);
+}
+
+/* ══════════════════════ LISTA COMPLETA ══════════════════════ */
+function renderLista(){
+  const q = ($('#buscadorGlobal').value||'').toLowerCase();
+  const res = players.filter(p => !q || (p.nombre+' '+p.telefono+' '+p.notas).toLowerCase().includes(q));
+  $('#contadorTotal').textContent = `(${players.length})`;
+  $('#tablaJugadores').innerHTML = res.length ? res.map(p => `
+    <tr class="hover:bg-carbono-800/60">
+      <td class="px-4 py-3 font-bold">${esc(p.nombre)}</td>
+      <td class="px-4 py-3"><span class="bg-lima/15 text-lima px-2 py-0.5 rounded-md text-xs font-bold">${nivelTxt(p.nivel)}</span></td>
+      <td class="px-4 py-3 font-mono text-xs">${esc(p.telefono)}</td>
+      <td class="px-4 py-3 text-xs">${p.dias.join(' ')||'—'}</td>
+      <td class="px-4 py-3 text-xs">${esc(p.inicio)}–${esc(p.fin)}</td>
+      <td class="px-4 py-3 text-xs">${TIPO_LABEL[p.tipo]||esc(p.tipo)}</td>
+      <td class="px-4 py-3 text-xs text-zinc-400 max-w-[180px] truncate" title="${esc(p.notas)}">${esc(p.notas)||'—'}</td>
+      <td class="px-4 py-3 text-right whitespace-nowrap">
+        <button onclick="copiarTelefono('${soloDigitos(p.telefono)}', this)" class="bg-carbono-700 hover:bg-carbono-600 px-2 py-1 rounded-md text-xs" title="Copiar teléfono">📋</button>
+        <a href="https://wa.me/${soloDigitos(p.telefono)}" target="_blank" rel="noopener" class="inline-block bg-[#25D366]/20 text-[#4ceb8a] hover:bg-[#25D366] hover:text-carbono-950 px-2 py-1 rounded-md text-xs font-bold ml-1">💬</a>
+        <button onclick="abrirModal('${p.id}')" class="bg-carbono-700 hover:bg-carbono-600 px-2 py-1 rounded-md text-xs ml-1">✏️</button>
+        <button onclick="eliminarJugador('${p.id}')" class="bg-carbono-700 hover:bg-red-500/80 px-2 py-1 rounded-md text-xs ml-1">🗑️</button>
+      </td>
+    </tr>`).join('')
+   : `<tr><td colspan="8" class="px-4 py-10 text-center text-zinc-500">Sin resultados</td></tr>`;
+}
+
+/* ══════════════════════ CRUD ══════════════════════ */
+function construirFormulario(){
+  $('#fNivel').innerHTML = Array.from({length:17},(_,i)=>(1+i*0.25)).map(n =>
+    `<option value="${n.toFixed(2)}">${nivelTxt(n)}</option>`).join('');
+  $('#fDiasForm').innerHTML = DAYS.map(d =>
+    `<label class="chip flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-carbono-800 border border-carbono-700 text-xs cursor-pointer has-[:checked]:bg-lima has-[:checked]:text-carbono-950 has-[:checked]:border-lima has-[:checked]:font-bold">
+       <input type="checkbox" value="${d}" class="hidden">${d}</label>`).join('');
+  $('#fTiposForm').innerHTML = TIPOS.map(([v,l],i) =>
+    `<label class="chip flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-carbono-800 border border-carbono-700 text-xs cursor-pointer has-[:checked]:bg-lima has-[:checked]:text-carbono-950 has-[:checked]:border-lima has-[:checked]:font-bold">
+       <input type="radio" name="tipo" value="${v}" class="hidden" ${i===0?'checked':''}>${l}</label>`).join('');
+}
+function abrirModal(id=null){
+  editandoId = id;
+  const f = $('#formJugador'); f.reset();
+  $('#modalTitulo').textContent = id ? '✏️ Editar jugador' : '➕ Nuevo jugador';
+  if(id){
+    const p = players.find(x => x.id===id); if(!p) return;
+    $('#fNombre').value=p.nombre; $('#fTelefono').value=p.telefono; $('#fNivel').value=(+p.nivel).toFixed(2);
+    $('#fInicio').value=p.inicio; $('#fFin').value=p.fin; $('#fNotas').value=p.notas;
+    $$('#fDiasForm input').forEach(c => c.checked = p.dias.includes(c.value));
+    $$('#fTiposForm input').forEach(r => r.checked = r.value===p.tipo);
+  } else {
+    $$('#fDiasForm input').forEach(c => c.checked=false);
+    $$('#fTiposForm input')[0].checked = true;
+  }
+  $('#modal').classList.remove('hidden');
+  setTimeout(()=>$('#fNombre').focus(), 50);
+}
+function cerrarModal(){ $('#modal').classList.add('hidden'); editandoId=null; }
+
+function guardarJugador(ev){
+  ev.preventDefault();
+  const datos = {
+    nombre: $('#fNombre').value.trim(),
+    telefono: $('#fTelefono').value.trim(),
+    nivel: parseFloat($('#fNivel').value),
+    dias: $$('#fDiasForm input:checked').map(c => c.value),
+    inicio: $('#fInicio').value || '00:00',
+    fin: $('#fFin').value || '23:59',
+    tipo: ($$('#fTiposForm input:checked')[0]||{}).value || 'fijo',
+    notas: $('#fNotas').value.trim()
+  };
+  if(aMin(datos.inicio) >= aMin(datos.fin)){ toast('⚠️ La hora de fin debe ser posterior a la de inicio', false); return; }
+  if(editandoId){
+    Object.assign(players.find(p => p.id===editandoId), datos);
+    toast('✅ Jugador actualizado');
+  } else {
+    players.push({ id:'p'+Date.now()+Math.random().toString(36).slice(2,6), ...datos });
+    toast('✅ Jugador añadido al club');
+  }
+  guardar(); cerrarModal(); renderBusqueda(); renderLista();
+}
+function eliminarJugador(id){
+  const p = players.find(x => x.id===id); if(!p) return;
+  if(!confirm(`¿Eliminar a ${p.nombre} de la base de datos?`)) return;
+  players = players.filter(x => x.id!==id);
+  guardar(); renderBusqueda(); renderLista();
+  toast('🗑️ Jugador eliminado');
+}
+
+/* ══════════════════════ COPIAR / EXPORTAR / IMPORTAR ══════════════════════ */
+async function copiarTelefono(num, btn){
+  try{ await navigator.clipboard.writeText(num); }
+  catch(e){ const t=document.createElement('textarea'); t.value=num; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  const prev = btn.innerHTML; btn.innerHTML='✔ Copiado';
+  toast('📋 Teléfono copiado: '+num);
+  setTimeout(()=>btn.innerHTML=prev, 1200);
+}
+function toggleMenuExport(){ $('#menuExport').classList.toggle('hidden'); }
+document.addEventListener('click', e => { if(!e.target.closest('#menuExport') && !e.target.closest('[onclick*="toggleMenuExport"]')) $('#menuExport').classList.add('hidden'); });
+
+function descargar(nombre, contenido, tipo){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contenido], {type:tipo}));
+  a.download = nombre; a.click(); URL.revokeObjectURL(a.href);
+}
+function exportar(formato){
+  $('#menuExport').classList.add('hidden');
+  const fecha = new Date().toISOString().slice(0,10);
+  if(formato==='json'){
+    descargar(`jugadores-padel-${fecha}.json`, JSON.stringify(players, null, 2), 'application/json');
+  } else {
+    const q = v => `"${String(v??'').replace(/"/g,'""')}"`;
+    const csv = ['nombre,telefono,nivel,dias,inicio,fin,tipo,notas',
+      ...players.map(p => [p.nombre,p.telefono,nivelTxt(p.nivel),p.dias.join(' '),p.inicio,p.fin,p.tipo,p.notas].map(q).join(','))].join('\r\n');
+    descargar(`jugadores-padel-${fecha}.csv`, '﻿'+csv, 'text/csv;charset=utf-8');
+  }
+  toast('📤 Archivo descargado');
+}
+function importarArchivo(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      let nuevos;
+      const txt = reader.result.trim();
+      if(file.name.endsWith('.json') || txt.startsWith('[') || txt.startsWith('{')){
+        const d = JSON.parse(txt);
+        nuevos = (Array.isArray(d) ? d : d.jugadores || []).map(normalizarJugador).filter(Boolean);
+      } else {
+        nuevos = txt.split(/\r?\n/).slice(1).filter(l => l.trim()).map(l => {
+          const c = l.match(/("(?:[^"]|"")*"|[^,]+)/g).map(x => x.replace(/^"|"$/g,'').replace(/""/g,'"').trim());
+          return normalizarJugador({ nombre:c[0], telefono:c[1], nivel:c[2], dias:(c[3]||'').split(/\s+/), inicio:c[4], fin:c[5], tipo:c[6], notas:c[7] });
+        }).filter(Boolean);
+      }
+      if(!nuevos.length) throw new Error('vacío');
+      if(confirm(`Se han detectado ${nuevos.length} jugadores. ¿AÑADIR a los actuales? (Aceptar = añadir · Cancelar = reemplazar todo)`)){
+        players = players.concat(nuevos);
+      } else players = nuevos;
+      guardar(); renderBusqueda(); renderLista();
+      toast(`✅ ${nuevos.length} jugadores importados`);
+    }catch(e){ toast('❌ No se pudo leer el archivo', false); }
+    ev.target.value='';
+  };
+  reader.readAsText(file);
+}
+function normalizarJugador(d){
+  if(!d || !d.nombre || !d.telefono) return null;
+  return {
+    id: d.id || 'p'+Date.now()+Math.random().toString(36).slice(2,6),
+    nombre: String(d.nombre).trim(),
+    telefono: String(d.telefono).trim(),
+    nivel: Math.min(5, Math.max(1, parseFloat(String(d.nivel).replace(',','.')) || 3)),
+    dias: (Array.isArray(d.dias)?d.dias:String(d.dias||'').split(/[\s,;]+/)).map(x=>x.trim().toUpperCase().slice(0,1)).filter(x=>DAYS.includes(x)),
+    inicio: /^\d{1,2}:\d{2}$/.test(d.inicio||'') ? d.inicio : '18:00',
+    fin: /^\d{1,2}:\d{2}$/.test(d.fin||'') ? d.fin : '21:00',
+    tipo: TIPOS.some(([v])=>v===d.tipo) ? d.tipo : 'fijo',
+    notas: String(d.notas||'').trim()
+  };
+}
+function restaurarEjemplos(){
+  if(!confirm('Esto SUSTITUIRÁ los datos actuales por 6 jugadores de ejemplo. ¿Continuar?')) return;
+  players = JSON.parse(JSON.stringify(EJEMPLOS));
+  guardar(); limpiarFiltros(); renderLista();
+  toast('🔄 Datos de ejemplo cargados');
+}
+
+/* ══════════════════════ PARSER DE WHATSAPP ══════════════════════ */
+function analizarTexto(){
+  const lineas = $('#textoWhatsapp').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  candidatos = [];
+  lineas.forEach(l => {
+    // Teléfono (España, con o sin +34)
+    const mTel = l.match(/(?:\+?\d{1,3}[\s.\-]?)?([6789][\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2}[\s.\-]?\d{2})/);
+    const tel = mTel ? soloDigitos(mTel[0]).slice(-9) : '';
+    // Nivel: "nivel 3.5" o número suelto válido (1 a 5 con .25/.5/.75)
+    let nv = null;
+    const mNiv = l.match(/nivel\s*:?\s*(\d(?:[.,]\d{1,2})?)/i) || l.match(/\b([1-4][.,](?:00?|25|5|50|75)|[1-5][.,]0{1,2}|[1-5])\b/);
+    if(mNiv){ const v = parseFloat(mNiv[1].replace(',','.')); if(v>=1 && v<=5) nv = Math.round(v*4)/4; }
+    // Días
+    const upper = ' '+l.toUpperCase()+' ';
+    const dias = [];
+    if(/\b(L|LUNES)\b/.test(upper)) dias.push('L');
+    if(/\b(M|MA|MARTES|MAR)\b/.test(upper)) dias.push('M');
+    if(/\b(X|MI|MIÉRCOLES|MIERCOLES)\b/.test(upper)) dias.push('X');
+    if(/\b(J|JUE|JUEVES)\b/.test(upper)) dias.push('J');
+    if(/\b(V|VIE|VIERNES)\b/.test(upper)) dias.push('V');
+    if(/\b(S|SÁB|SAB|SÁBADO|SABADO)\b/.test(upper)) dias.push('S');
+    if(/\b(D|DOM|DOMINGO)\b/.test(upper)) dias.push('D');
+    // Horario HH:MM - HH:MM
+    const mHor = l.match(/(\d{1,2})[:h.](\d{2})\s*(?:-|–|a|hasta)\s*(\d{1,2})[:h.](\d{2})/i);
+    // Tipo
+    const tipo = /rotativ/i.test(l) ? 'rotativo'
+               : /mañana/i.test(l) ? 'mananas'
+               : /tarde/i.test(l) ? 'tardes'
+               : /noche/i.test(l) ? 'noches' : 'fijo';
+    // Nombre: limpiar la línea de teléfono, horas y palabras técnicas
+    let nombre = l
+      .replace(mTel ? mTel[0] : '', '')
+      .replace(/\d{1,2}[:h.]\d{2}\s*(?:-|–|a|hasta)\s*\d{1,2}[:h.]\d{2}/gi, '')
+      .replace(/\b(nivel|nv)\b\s*:?\s*\d(?:[.,]\d{1,2})?/gi, '')
+      .replace(/\b(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo|lun|mar|mié|mie|jue|vie|sáb|sab|dom)\b/gi, '')
+      .replace(/\b(fijo|rotativo|rotativa|mañanas?|tardes?|noches?)\b/gi, '')
+      .replace(/^\W*( Soy | Me llamo )/i, '')
+      .replace(/[\-–—:|]+/g, ' ')
+      .replace(/\s{2,}/g,' ').trim();
+    nombre = nombre.split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()+w.slice(1)).join(' ').slice(0,60) || 'Sin nombre';
+    // Cortar saludos típicos de chat exportado
+    nombre = nombre.replace(/^(Hola|Buenas|Buenos días|Buenas tardes|Buenas noches)\s*/i, '').trim() || nombre;
+
+    if(tel || nv !== null || dias.length) candidatos.push({
+      sel:true, nombre, telefono:tel, nivel:nv ?? 3.0,
+      dias, inicio: mHor ? `${mHor[1].padStart(2,'0')}:${mHor[2]}` : '',
+      fin: mHor ? `${mHor[3].padStart(2,'0')}:${mHor[4]}` : '', tipo
+    });
+  });
+  if(!candidatos.length){ toast('❌ No se detectaron datos en el texto', false); return; }
+  renderCandidatos();
+  toast(`🔍 ${candidatos.length} candidatos detectados`);
+}
+function renderCandidatos(){
+  $('#zonaCandidatos').classList.remove('hidden');
+  $('#contadorCandidatos').textContent = `(${candidatos.length})`;
+  $('#tablaCandidatos').innerHTML = candidatos.map((c,i) => `
+    <tr class="${c.sel?'':'opacity-50'}">
+      <td class="px-2 py-2"><input type="checkbox" ${c.sel?'checked':''} onchange="candidatos[${i}].sel=this.checked; this.closest('tr').classList.toggle('opacity-50',!this.checked)" class="w-4 h-4 accent-lima"></td>
+      <td class="px-2 py-1"><input value="${esc(c.nombre)}" oninput="candidatos[${i}].nombre=this.value" class="w-full bg-carbono-800 border border-carbono-700 rounded-lg px-2 py-1.5 text-xs focus:border-lima focus:outline-none"></td>
+      <td class="px-2 py-1"><input value="${esc(c.telefono)}" oninput="candidatos[${i}].telefono=this.value" class="w-28 bg-carbono-800 border border-carbono-700 rounded-lg px-2 py-1.5 text-xs font-mono focus:border-lima focus:outline-none"></td>
+      <td class="px-2 py-1"><select onchange="candidatos[${i}].nivel=parseFloat(this.value)" class="bg-carbono-800 border border-carbono-700 rounded-lg px-1 py-1.5 text-xs focus:border-lima focus:outline-none">
+        ${[1,1.5,2,2.5,3,3.5,4,4.5,5].map(n=>`<option value="${n}" ${Math.abs(n-c.nivel)<0.01?'selected':''}>${n.toFixed(1)}</option>`).join('')}</select></td>
+      <td class="px-2 py-1"><div class="flex gap-1">${DAYS.map(d=>`<button type="button" onclick="toggleDiaCandidato(${i},'${d}',this)" class="w-6 h-6 rounded text-[10px] font-bold ${c.dias.includes(d)?'bg-lima text-carbono-950':'bg-carbono-700 text-zinc-400'}">${d}</button>`).join('')}</div></td>
+      <td class="px-2 py-1"><input type="time" value="${c.inicio||'18:00'}" oninput="candidatos[${i}].inicio=this.value" class="bg-carbono-800 border border-carbono-700 rounded-lg px-1 py-1 text-xs focus:border-lima focus:outline-none"></td>
+      <td class="px-2 py-1"><input type="time" value="${c.fin||'21:00'}" oninput="candidatos[${i}].fin=this.value" class="bg-carbono-800 border border-carbono-700 rounded-lg px-1 py-1 text-xs focus:border-lima focus:outline-none"></td>
+      <td class="px-2 py-1"><select onchange="candidatos[${i}].tipo=this.value" class="bg-carbono-800 border border-carbono-700 rounded-lg px-1 py-1.5 text-xs focus:border-lima focus:outline-none">
+        ${TIPOS.map(([v,l])=>`<option value="${v}" ${c.tipo===v?'selected':''}>${l.split(' ')[1]}</option>`).join('')}</select></td>
+    </tr>`).join('');
+  $('#zonaCandidatos').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function toggleDiaCandidato(i, d, btn){
+  const arr = candidatos[i].dias;
+  const ix = arr.indexOf(d);
+  ix>=0 ? arr.splice(ix,1) : arr.push(d);
+  btn.className = `w-6 h-6 rounded text-[10px] font-bold ${arr.includes(d)?'bg-lima text-carbono-950':'bg-carbono-700 text-zinc-400'}`;
+}
+function marcarTodos(v){ candidatos.forEach(c => c.sel=v); renderCandidatos(); }
+function añadirCandidatos(){
+  const ok = candidatos.filter(c => c.sel && c.nombre && soloDigitos(c.telefono).length>=9);
+  if(!ok.length){ toast('❌ Ningún candidato válido (necesitan nombre y teléfono)', false); return; }
+  ok.forEach(c => players.push({
+    id:'p'+Date.now()+Math.random().toString(36).slice(2,6),
+    nombre:c.nombre, telefono:soloDigitos(c.telefono), nivel:c.nivel, dias:[...c.dias],
+    inicio:c.inicio||'18:00', fin:c.fin||'21:00', tipo:c.tipo, notas:''
+  }));
+  guardar(); renderBusqueda(); renderLista();
+  toast(`✅ ${ok.length} jugadores añadidos`);
+  $('#zonaCandidatos').classList.add('hidden');
+  $('#textoWhatsapp').value='';
+}
+
+/* ══════════════════════ ARRANQUE ══════════════════════ */
+construirFiltros();
+construirFormulario();
+renderBusqueda();
+</script>
+</body>
+</html>

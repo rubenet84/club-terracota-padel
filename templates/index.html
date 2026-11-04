@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>Club Terracota Pádel · Gestión de Jugadores</title>
+<link rel="stylesheet" href="/static/app.css?v=20261103-2">
+</head>
+<body class="bg-carbono-950 text-zinc-100 min-h-screen">
+
+<!-- ══════════ CABECERA ══════════ -->
+<header class="sticky top-0 z-40 bg-carbono-900/95 backdrop-blur border-b border-carbono-700">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-3 mr-auto">
+      <div class="w-10 h-10 rounded-xl bg-lima flex items-center justify-center text-2xl">🎾</div>
+      <div>
+        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight">Club Terracota <span class="text-lima">Pádel</span></h1>
+        <p class="text-[11px] text-zinc-400 -mt-0.5">Gestión de jugadores y cierre de partidas</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button data-action="new-player" class="bg-lima hover:bg-lima-dark text-carbono-950 font-bold px-4 py-2 rounded-xl text-sm transition">➕ Nuevo jugador</button>
+      <button data-action="import-file" class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2 rounded-xl text-sm transition">📥 Importar</button>
+      <div class="relative">
+        <button data-action="toggle-export" class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2 rounded-xl text-sm transition">📤 Exportar ▾</button>
+        <div id="menuExport" class="hidden absolute right-0 mt-2 w-44 bg-carbono-800 border border-carbono-700 rounded-xl shadow-xl overflow-hidden z-50">
+          <button data-action="export" data-format="json" class="w-full text-left px-4 py-2.5 text-sm hover:bg-carbono-700">🗄️ JSON (copia seguridad)</button>
+          <button data-action="export" data-format="csv" class="w-full text-left px-4 py-2.5 text-sm hover:bg-carbono-700">📊 CSV (Excel)</button>
+        </div>
+      </div>
+      <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2 rounded-xl text-sm transition">🚪 Salir</button></form>
+    </div>
+  </div>
+  <!-- Pestañas -->
+  <div class="max-w-7xl mx-auto px-4 flex gap-2 pb-3">
+    <button data-tab="buscar" data-action="tab" class="tab-btn on px-4 py-1.5 rounded-lg text-sm bg-carbono-700 transition">🔍 Búsqueda exprés</button>
+    <button data-tab="jugadores" data-action="tab" class="tab-btn px-4 py-1.5 rounded-lg text-sm bg-carbono-700 transition">👥 Todos los jugadores</button>
+    <button data-tab="inactivos" data-action="tab" class="tab-btn px-4 py-1.5 rounded-lg text-sm bg-carbono-700 transition">⏸️ Jugadores inactivos</button>
+    <button data-tab="parser" data-action="tab" class="tab-btn px-4 py-1.5 rounded-lg text-sm bg-carbono-700 transition">💬 Volcar desde WhatsApp</button>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+<!-- ══════════ PESTAÑA: BÚSQUEDA EXPRÉS ══════════ -->
+<section id="tab-buscar" class="fade-in">
+
+  <!-- Panel de filtros -->
+  <div class="bg-carbono-900 border border-carbono-700 rounded-2xl p-4 sm:p-5 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-lima">⚡ Filtros rápidos</h2>
+      <button data-action="clear-filters" class="text-xs text-zinc-400 hover:text-lima underline underline-offset-2">Limpiar filtros</button>
+    </div>
+
+    <!-- Nivel -->
+    <div class="mb-4">
+      <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Nivel</p>
+      <div id="fNiveles" class="flex flex-wrap gap-1.5"></div>
+    </div>
+
+    <!-- Días -->
+    <div class="mb-4">
+      <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Día de la semana</p>
+      <div id="fDias" class="flex flex-wrap gap-1.5"></div>
+    </div>
+
+    <!-- Franja horaria -->
+    <div class="mb-4">
+      <div class="flex items-center gap-2 mb-2">
+        <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide">Franja horaria</p>
+        <details class="relative">
+          <summary class="cursor-pointer list-none text-zinc-400 hover:text-lima text-xs font-bold rounded-full border border-carbono-600 w-5 h-5 flex items-center justify-center" title="Ver horarios de las franjas" aria-label="Ver horarios de las franjas">i</summary>
+          <div class="absolute z-30 left-0 top-7 w-56 bg-carbono-800 border border-carbono-600 rounded-xl shadow-xl p-3 text-xs">
+            <p class="font-bold text-lima mb-2">Horarios de las franjas</p>
+            <div class="space-y-1.5 text-zinc-300">
+              <p><strong class="text-white">M1</strong> · 08:00–10:00</p>
+              <p><strong class="text-white">M2</strong> · 10:00–13:00</p>
+              <p><strong class="text-white">T1</strong> · 13:00–16:00</p>
+              <p><strong class="text-white">T2</strong> · 16:00–19:00</p>
+              <p><strong class="text-white">N1</strong> · 19:00–23:00</p>
+            </div>
+          </div>
+        </details>
+      </div>
+      <div id="fFranjas" class="flex flex-wrap gap-1.5 mb-3"></div>
+      <div class="bg-carbono-800 rounded-xl p-3">
+        <p class="text-xs text-zinc-400 mb-2">O ajusta el rango de hora: <span id="rangoLabel" class="text-lima font-bold">08:00 – 23:00</span></p>
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] text-zinc-500 w-8">Desde</span>
+          <input type="range" id="hMin" min="8" max="23" value="8" class="flex-1">
+        </div>
+        <div class="flex items-center gap-3 mt-2">
+          <span class="text-[10px] text-zinc-500 w-8">Hasta</span>
+          <input type="range" id="hMax" min="8" max="23" value="23" class="flex-1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Tipo de disponibilidad -->
+    <div>
+      <p class="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Tipo de horario</p>
+      <div id="fTipos" class="flex flex-wrap gap-1.5"></div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-bold text-lg">Resultados <span id="contador" class="text-lima">(0)</span></h2>
+  </div>
+  <div id="resultados" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+  <div id="sinResultados" class="hidden text-center py-16 text-zinc-500">
+    <p class="text-5xl mb-3">🕳️</p>
+    <p class="font-bold">Ningún jugador coincide con los filtros</p>
+    <p class="text-sm mt-1">Prueba a quitar algún filtro o añade nuevos jugadores.</p>
+  </div>
+</section>
+
+<!-- ══════════ PESTAÑA: TODOS LOS JUGADORES ══════════ -->
+<section id="tab-jugadores" class="hidden fade-in">
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <h2 class="font-bold text-lg mr-auto">Base de datos completa <span id="contadorTotal" class="text-lima">(0)</span></h2>
+    <input type="text" id="buscadorGlobal" placeholder="🔎 Buscar por nombre, teléfono o nota…"
+      class="bg-carbono-900 border border-carbono-700 rounded-xl px-4 py-2 text-sm w-full sm:w-80 focus:outline-none focus:border-lima">
+  </div>
+  <div class="overflow-x-auto rounded-2xl border border-carbono-700">
+    <table class="w-full text-sm min-w-[760px]">
+      <thead class="bg-carbono-800 text-zinc-400 text-xs uppercase tracking-wide">
+        <tr>
+          <th class="text-left px-4 py-3">Jugador</th>
+          <th class="text-left px-4 py-3">Nivel</th>
+          <th class="text-left px-4 py-3">Teléfono</th>
+          <th class="text-left px-4 py-3">Días</th>
+          <th class="text-left px-4 py-3">Horario</th>
+          <th class="text-left px-4 py-3">Tipo</th>
+          <th class="text-left px-4 py-3">Notas</th>
+          <th class="text-right px-4 py-3">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tablaJugadores" class="divide-y divide-carbono-700"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════ PESTAÑA: JUGADORES INACTIVOS ══════════ -->
+<section id="tab-inactivos" class="hidden fade-in">
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <h2 class="font-bold text-lg mr-auto">Jugadores inactivos <span id="contadorInactivos" class="text-lima">(0)</span></h2>
+    <input type="text" id="buscadorInactivos" placeholder="🔎 Buscar jugador inactivo…"
+      class="bg-carbono-900 border border-carbono-700 rounded-xl px-4 py-2 text-sm w-full sm:w-80 focus:outline-none focus:border-lima">
+  </div>
+  <div class="overflow-x-auto rounded-2xl border border-carbono-700">
+    <table class="w-full text-sm min-w-[650px]">
+      <thead class="bg-carbono-800 text-zinc-400 text-xs uppercase tracking-wide">
+        <tr>
+          <th class="text-left px-4 py-3">Jugador</th>
+          <th class="text-left px-4 py-3">Nivel</th>
+          <th class="text-left px-4 py-3">Teléfono</th>
+          <th class="text-left px-4 py-3">Disponibilidades</th>
+          <th class="text-right px-4 py-3">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tablaInactivos" class="divide-y divide-carbono-700"></tbody>
+    </table>
+  </div>
+  <p class="text-xs text-zinc-500 mt-3">Los jugadores inactivos se conservan en la base de datos. Puedes reactivarlos cuando vuelvan a jugar.</p>
+</section>
+
+<!-- ══════════ PESTAÑA: PARSER WHATSAPP ══════════ -->
+<section id="tab-parser" class="hidden fade-in">
+  <div class="bg-carbono-900 border border-carbono-700 rounded-2xl p-4 sm:p-6">
+    <h2 class="font-bold text-lg text-lima mb-1">💬 Volcado rápido desde WhatsApp</h2>
+    <p class="text-sm text-zinc-400 mb-4">Pega varios mensajes, uno por línea (por ejemplo, “Carlos: puedo lunes…”). Detecta <b class="text-zinc-200">nombre, teléfono si aparece, nivel, días y horario</b>. Si falta el teléfono, complétalo en la tabla antes de guardar.</p>
+    <textarea id="textoWhatsapp" rows="8" placeholder="Ejemplo de chat:&#10;Carlos: Buenas! Yo podría jugar lunes y miércoles por la mañana, a partir de las 10. Mi nivel es más o menos 3.&#10;Marta: Hola! Busco gente martes o jueves de 9 a 12. Nivel 2,5."
+      class="w-full bg-carbono-950 border border-carbono-700 rounded-xl p-4 text-sm focus:outline-none focus:border-lima placeholder:text-zinc-600"></textarea>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <button data-action="analyze-text" class="bg-lima hover:bg-lima-dark text-carbono-950 font-bold px-5 py-2.5 rounded-xl text-sm transition">🔍 Analizar texto</button>
+      <button data-action="clear-whatsapp" class="bg-carbono-700 hover:bg-carbono-600 px-4 py-2.5 rounded-xl text-sm transition">🧹 Limpiar</button>
+    </div>
+  </div>
+  <div id="zonaCandidatos" class="hidden mt-5 bg-carbono-900 border border-carbono-700 rounded-2xl p-4 sm:p-6">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <h3 class="font-bold">Candidatos detectados <span id="contadorCandidatos" class="text-lima">(0)</span></h3>
+      <div class="flex gap-2">
+        <button data-action="select-all-candidates" class="text-xs bg-carbono-700 hover:bg-carbono-600 px-3 py-1.5 rounded-lg">✔ Todos</button>
+        <button data-action="select-no-candidates" class="text-xs bg-carbono-700 hover:bg-carbono-600 px-3 py-1.5 rounded-lg">✘ Ninguno</button>
+        <button data-action="add-candidates" class="bg-lima hover:bg-lima-dark text-carbono-950 font-bold px-4 py-1.5 rounded-lg text-sm transition">➕ Añadir seleccionados</button>
+      </div>
+    </div>
+    <p class="text-xs text-zinc-500 mb-3">💡 Los horarios se agrupan por cliente. Puedes corregir o añadir cada día y franja antes de guardar.</p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[900px]">
+        <thead class="bg-carbono-800 text-zinc-400 text-xs uppercase">
+          <tr>
+            <th class="px-2 py-2 text-left"></th>
+            <th class="px-2 py-2 text-left">Nombre</th>
+            <th class="px-2 py-2 text-left">Teléfono</th>
+            <th class="px-2 py-2 text-left">Nivel</th>
+            <th class="px-2 py-2 text-left">Horarios por día</th>
+          </tr>
+        </thead>
+        <tbody id="tablaCandidatos" class="divide-y divide-carbono-700"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ══════════ MODAL AÑADIR / EDITAR ══════════ -->
+<div id="modal" class="hidden fixed inset-0 z-50 modal-bg flex items-center justify-center p-4">
+  <div class="bg-carbono-900 border border-carbono-700 rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto fade-in">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-carbono-700 sticky top-0 bg-carbono-900">
+      <h3 id="modalTitulo" class="font-bold text-lg text-lima">➕ Nuevo jugador</h3>
+      <button data-action="close-modal" class="text-zinc-400 hover:text-white text-xl leading-none">✕</button>
+    </div>
+    <form id="formJugador" class="p-5 space-y-4" novalidate>
+      <div>
+        <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Nombre completo *</label>
+        <input type="text" id="fNombre" required minlength="2" maxlength="120" autocomplete="name" aria-describedby="error-nombre" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima" placeholder="Ej: Ana García">
+        <p id="error-nombre" data-field-error="nombre" class="hidden mt-1 text-xs text-red-300" aria-live="polite"></p>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Teléfono *</label>
+          <input type="tel" id="fTelefono" required maxlength="25" inputmode="tel" autocomplete="tel" aria-describedby="error-telefono" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima" placeholder="612345678">
+          <p id="error-telefono" data-field-error="telefono" class="hidden mt-1 text-xs text-red-300" aria-live="polite"></p>
+        </div>
+        <div>
+        <label for="fNivel" class="block text-xs font-bold text-zinc-400 uppercase mb-1">Nivel del club *</label>
+        <select id="fNivel" required aria-describedby="error-nivel" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima"></select>
+          <p id="error-nivel" data-field-error="nivel" class="hidden mt-1 text-xs text-red-300" aria-live="polite"></p>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Correo electrónico</label>
+        <input type="email" id="fEmail" maxlength="254" autocomplete="email" aria-describedby="error-correo" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima" placeholder="jugador@correo.com">
+        <p id="error-correo" data-field-error="correo_electronico" class="hidden mt-1 text-xs text-red-300" aria-live="polite"></p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Lado preferido</label>
+          <select id="fLado" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima">
+            <option value="indiferente">Indiferente</option>
+            <option value="derecha">Derecha</option>
+            <option value="reves">Revés</option>
+          </select>
+        </div>
+        <div class="flex items-end pb-2">
+          <label class="flex items-center gap-3 text-sm cursor-pointer">
+            <input type="checkbox" id="fBuscaPartidas" checked class="w-4 h-4 accent-lima">
+            <span>Busca partidas / compañeros</span>
+          </label>
+        </div>
+      </div>
+      <div class="border-t border-carbono-700 pt-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div>
+            <label class="block text-xs font-bold text-zinc-400 uppercase">Disponibilidades</label>
+            <p class="text-xs text-zinc-500 mt-1">Añade una fila por cada día y franja horaria. Puedes repetir un día si tiene varios horarios.</p>
+          </div>
+          <button type="button" data-action="add-availability" class="bg-carbono-700 hover:bg-carbono-600 border border-carbono-600 px-3 py-2 rounded-lg text-xs font-bold">＋ Añadir horario</button>
+        </div>
+        <div id="fDisponibilidades" class="space-y-3"></div>
+        <p data-field-error="disponibilidades" class="hidden mt-1 text-xs text-red-300" aria-live="polite"></p>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-zinc-400 uppercase mb-1">Notas / observaciones</label>
+        <textarea id="fNotas" rows="2" maxlength="2000" aria-describedby="error-observaciones" class="w-full bg-carbono-800 border border-carbono-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-lima" placeholder="Ej: Preferencia revés, es zurdo…"></textarea>
+        <p id="error-observaciones" data-field-error="observaciones" class="hidden mt-1 text-xs text-red-300" aria-live="polite"></p>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="flex-1 bg-lima hover:bg-lima-dark text-carbono-950 font-bold py-3 rounded-xl transition">💾 Guardar jugador</button>
+        <button type="button" data-action="close-modal" class="bg-carbono-700 hover:bg-carbono-600 px-5 rounded-xl transition">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept=".json,.csv" class="hidden">
+<div id="toasts" class="fixed bottom-4 right-4 z-[60] space-y-2"></div>
+
+<script src="/static/filter_rules.js?v=20261103-1" defer></script>
+<script src="/static/whatsapp_parser.js?v=20261103-2" defer></script>
+<script src="/static/csv_tools.js?v=20261103-1" defer></script>
+<script src="/static/app.js?v=20261103-10" defer></script>
+</body>
+</html>
