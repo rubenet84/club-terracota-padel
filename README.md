@@ -116,7 +116,7 @@ Antes de publicar:
 
 Las variables marcadas `sync: false` no guardan secretos en el repositorio; Render solicita sus valores al crear el Blueprint. Si agregas un Blueprint a un servicio existente, revisa las variables en el panel de Render.
 
-Render Free puede suspender servicios web inactivos y tardar en responder al primer acceso después de la suspensión. Para uso real con datos confidenciales, revisa el plan y las condiciones actuales de disponibilidad antes de decidir el nivel de servicio. Los datos de clientes deben permanecer en Supabase; no uses el disco efímero del servicio para almacenarlos.
+El Blueprint configura el servicio con el plan Free para evitar seleccionar por defecto un plan de pago. Render Free suspende servicios web inactivos y puede tardar cerca de un minuto en responder al primer acceso; además puede suspender servicios al alcanzar límites de uso. Render indica que Free está pensado para pruebas y proyectos personales, no para producción. Antes de guardar datos confidenciales de clientes, valora un servicio de producción con disponibilidad adecuada. Los datos deben permanecer en Supabase; el disco de Render es efímero.
 
 ## Seguridad: alcance de esta primera versión
 
